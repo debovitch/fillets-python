@@ -140,7 +140,8 @@ class StateInputProvider(InputProvider):
         """
         self.state = state
         self.handler = handler
-        pos = pygame.mouse.get_pos()
+        from gengine.agent.video_agent import VideoAgent
+        pos = VideoAgent.agent().get_mouse_pos()
         self.mouse_loc = V2(pos[0], pos[1])
         self._pressed_keys = {}
         self._mouse_buttons = [False, False, False]  # left, middle, right

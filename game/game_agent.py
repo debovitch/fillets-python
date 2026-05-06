@@ -150,6 +150,15 @@ class GameAgent(BaseAgent):
         fs_key = KeyStroke(pygame.K_F11, 0)
         fs_msg = SimpleMsg(Name.VIDEO_NAME, "fullscreen")
         key_binder.add_stroke(fs_key, fs_msg)
+
+        mac_fs_key = KeyStroke(pygame.K_f, pygame.KMOD_CTRL | pygame.KMOD_META)
+        key_binder.add_stroke(mac_fs_key, fs_msg)
+
+        alt_enter_fs_key = KeyStroke(pygame.K_RETURN, pygame.KMOD_ALT)
+        key_binder.add_stroke(alt_enter_fs_key, fs_msg)
+
+        alt_kp_enter_fs_key = KeyStroke(pygame.K_KP_ENTER, pygame.KMOD_ALT)
+        key_binder.add_stroke(alt_kp_enter_fs_key, fs_msg)
         
         # Log level controls
         log_plus = KeyStroke(pygame.K_KP_PLUS, pygame.KMOD_RALT)

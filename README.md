@@ -128,6 +128,24 @@ Useful options:
 - `show_steps=1`: show the step counter in levels.
 - `strict_rules=1`: keep strict movement rules enabled.
 
+## Game Controls
+
+- Arrow keys: Move the current fish
+- Space: Switch fish
+- Backspace: Restart level
+- `-` / `+`: Undo / redo
+- F1: Help
+- F2 / F3: Save / load game
+- F5: Show or hide the move counter
+- F6: Show or hide subtitles
+- F10: Game menu
+- F11: Toggle fullscreen
+- Option+Enter: Toggle fullscreen, recommended on macOS
+- Ctrl+Cmd+F: Toggle fullscreen on macOS
+- Shift: Faster game
+
+Fullscreen keeps the logical game resolution and scales it proportionally to the largest size that fits the desktop. The scaled game area is centered, with black bars when the desktop aspect ratio differs.
+
 ## Repository Layout
 
 ```text

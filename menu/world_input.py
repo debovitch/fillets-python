@@ -121,8 +121,8 @@ class WorldInputProvider(InputProvider):
         self._pressed_keys = {}
         self._mouse_buttons = [False, False, False]  # left, middle, right
         self._mouse_loc = None
-        pos = pygame.mouse.get_pos()
-        self._mouse_loc = V2(pos[0], pos[1])
+        from gengine.agent.video_agent import VideoAgent
+        pos = VideoAgent.agent().get_mouse_pos()
 
     def mouse_state(self, loc, buttons):
         """Update continuous mouse position and pressed buttons."""

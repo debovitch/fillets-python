@@ -78,21 +78,23 @@ class InputAgent(BaseAgent):
             elif event.type == pygame.KEYDOWN:
                 # Handle key press
                 self.key_state[event.key] = True
-                self.key_binder.key_down(event)
-                if self.handler:
+                handled = self.key_binder.key_down(event)
+                if self.handler and not handled:
                     self.handler.key_event(KeyStroke(event))
             
             elif event.type == pygame.KEYUP:
                 # Handle key release
                 self.key_state[event.key] = False
-                if self.handler:
+                handled = self.key_binder.key_up(event)
+                if self.handler and not handled:
                     self.handler.key_up(KeyStroke(event))
             
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 # Handle mouse button press
                 if self.handler:
                     # log_debug(f"Mouse down event: {event.button} at {event.pos}")
-                    self.handler.mouse_event(MouseStroke(event))
+                    pos = self._screen_to_game_pos(event.pos)
+                    self.handler.mouse_event(MouseStroke(event.button, pos[0], pos[1]))
                     
             # elif event.type == pygame.MOUSEBUTTONUP:
             #     # Handle mouse button release
@@ -102,7 +104,7 @@ class InputAgent(BaseAgent):
         
         # Update the mouse state
         if self.handler:
-            mouse_loc = pygame.mouse.get_pos()
+            mouse_loc = self._get_mouse_pos()
             self.handler.mouse_state(V2(mouse_loc[0], mouse_loc[1]), self._get_mouse_state())
     
     def own_shutdown(self):
@@ -127,7 +129,7 @@ class InputAgent(BaseAgent):
         
         if self.handler:
             self.handler.take_pressed(self.key_state)
-            mouse_loc = pygame.mouse.get_pos()
+            mouse_loc = self._get_mouse_pos()
             self.handler.mouse_state(V2(mouse_loc[0], mouse_loc[1]), self._get_mouse_state())
 
     def _get_mouse_state(self):
@@ -142,6 +144,18 @@ class InputAgent(BaseAgent):
             mouse_state |= MOUSE_RIGHT_MASK
         return mouse_state
     
+    def _get_mouse_pos(self):
+        """Return mouse coordinates in logical game space."""
+        from gengine.agent.video_agent import VideoAgent
+
+        return VideoAgent.agent().get_mouse_pos()
+
+    def _screen_to_game_pos(self, pos):
+        """Convert display-space event coordinates to logical game space."""
+        from gengine.agent.video_agent import VideoAgent
+
+        return VideoAgent.agent().screen_to_game_pos(pos)
+
     def key_binder(self):
         """
         Get the key binder.

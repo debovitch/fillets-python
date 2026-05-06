@@ -52,6 +52,9 @@ class VideoAgent(BaseAgent, MultiDrawer):
         BaseAgent.__init__(self)
         MultiDrawer.__init__(self)
         self.screen = None
+        self.draw_surface = None
+        self.logical_size = (0, 0)
+        self.output_rect = pygame.Rect(0, 0, 0, 0)
         self.fullscreen = False
     
     def own_init(self):
@@ -84,15 +87,26 @@ class VideoAgent(BaseAgent, MultiDrawer):
             # log_debug("Screen is not initialized in own_update")
             return
             
-        # Fill the screen with black as a background
+        draw_surface = self.draw_surface or self.screen
+
+        # Fill the display and logical game surface with black as a background
         self.screen.fill((0, 0, 0))
-        
+        if draw_surface is not self.screen:
+            draw_surface.fill((0, 0, 0))
+
         # If no drawers are registered, log error
         if not self.drawers:
             log_error("No drawers registered with the video agent")
         else:    
             # Draw all registered drawers
-            self.draw_on(self.screen)
+            self.draw_on(draw_surface)
+
+        if draw_surface is not self.screen:
+            if draw_surface.get_size() == self.output_rect.size:
+                self.screen.blit(draw_surface, self.output_rect)
+            else:
+                scaled_surface = pygame.transform.scale(draw_surface, self.output_rect.size)
+                self.screen.blit(scaled_surface, self.output_rect)
         
         # Update the display
         pygame.display.flip()
@@ -124,13 +138,14 @@ class VideoAgent(BaseAgent, MultiDrawer):
         options = OptionAgent.agent()
         screen_width = options.get_as_int("screen_width", 640)
         screen_height = options.get_as_int("screen_height", 480)
-        
+        fullscreen = options.get_as_bool("fullscreen", False)
+
         SysVideo.set_caption(options.get_param("caption", "Fish Fillets NG"))
         
         # Create or resize the screen if needed
         if (self.screen is None or 
-                self.screen.get_width() != screen_width or 
-                self.screen.get_height() != screen_height):
+                self.logical_size != (screen_width, screen_height) or
+                self.fullscreen != fullscreen):
             self.change_video_mode(screen_width, screen_height)
     
     def change_video_mode(self, screen_width, screen_height):
@@ -143,52 +158,92 @@ class VideoAgent(BaseAgent, MultiDrawer):
         """
         options = OptionAgent.agent()
         screen_bpp = options.get_as_int("screen_bpp", 32)
-        video_flags = self.get_video_flags()
-        self.fullscreen = options.get_as_bool("fullscreen", False)
-        
-        if self.fullscreen:
-            video_flags |= pygame.FULLSCREEN
-        
+        fullscreen = options.get_as_bool("fullscreen", False)
+
+        if fullscreen:
+            if self.change_fullscreen_mode(screen_width, screen_height, screen_bpp):
+                return
+
+            log_warning(ExInfo("unable to use fullscreen resolution, trying windowed")
+                       .add_info("width", screen_width)
+                       .add_info("height", screen_height)
+                       .add_info("bpp", screen_bpp))
+            if options.get_as_bool("fullscreen", False):
+                options.set_param("fullscreen", False)
+
+        self.change_windowed_mode(screen_width, screen_height, screen_bpp)
+
+    def change_fullscreen_mode(self, screen_width, screen_height, screen_bpp):
+        """
+        Use desktop fullscreen and scale the logical game surface into it.
+        """
+        display_size = self.get_fullscreen_size((screen_width, screen_height))
         try:
-            # Try to set the video mode
             self.screen = pygame.display.set_mode(
-                (screen_width, screen_height), 
-                video_flags, 
+                display_size,
+                self.get_video_flags() | pygame.FULLSCREEN,
                 screen_bpp
             )
-            
-            # Center the mouse pointer
-            pygame.mouse.set_pos(screen_width // 2, screen_height // 2)
-            
+            self.fullscreen = True
+            self.logical_size = (screen_width, screen_height)
+            self.draw_surface = pygame.Surface(self.logical_size).convert()
+            self.update_output_rect()
+            self.center_mouse()
+            return True
+        except pygame.error:
+            return False
+
+    def change_windowed_mode(self, screen_width, screen_height, screen_bpp):
+        """Set the normal windowed video mode."""
+        try:
+            self.screen = pygame.display.set_mode(
+                (screen_width, screen_height),
+                self.get_video_flags(),
+                screen_bpp
+            )
+            self.fullscreen = False
+            self.logical_size = (screen_width, screen_height)
+            self.draw_surface = self.screen
+            self.update_output_rect()
+            self.center_mouse()
         except pygame.error as e:
-            if video_flags & pygame.FULLSCREEN:
-                log_warning(ExInfo("unable to use fullscreen resolution, trying windowed")
-                           .add_info("width", screen_width)
-                           .add_info("height", screen_height)
-                           .add_info("bpp", screen_bpp))
-                
-                # Try again without fullscreen
-                video_flags &= ~pygame.FULLSCREEN
-                try:
-                    self.screen = pygame.display.set_mode(
-                        (screen_width, screen_height), 
-                        video_flags, 
-                        screen_bpp
-                    )
-                    # Center the mouse pointer
-                    pygame.mouse.set_pos(screen_width // 2, screen_height // 2)
-                except pygame.error as e2:
-                    raise LogicException(ExInfo("Cannot set video mode")
-                                        .add_info("width", screen_width)
-                                        .add_info("height", screen_height)
-                                        .add_info("bpp", screen_bpp)
-                                        .add_info("error", str(e2)))
-            else:
-                raise LogicException(ExInfo("Cannot set video mode")
-                                    .add_info("width", screen_width)
-                                    .add_info("height", screen_height)
-                                    .add_info("bpp", screen_bpp)
-                                    .add_info("error", str(e)))
+            raise LogicException(ExInfo("Cannot set video mode")
+                                .add_info("width", screen_width)
+                                .add_info("height", screen_height)
+                                .add_info("bpp", screen_bpp)
+                                .add_info("error", str(e)))
+
+    def get_fullscreen_size(self, fallback):
+        """Return the desktop size for fullscreen, or fallback when unavailable."""
+        if hasattr(pygame.display, "get_desktop_sizes"):
+            sizes = pygame.display.get_desktop_sizes()
+            if sizes:
+                return sizes[0]
+
+        info = pygame.display.Info()
+        if info.current_w > 0 and info.current_h > 0:
+            return info.current_w, info.current_h
+
+        return fallback
+
+    def update_output_rect(self):
+        """Compute the scaled, centered output rectangle for the logical surface."""
+        if self.logical_size == (0, 0) or not self.screen:
+            self.output_rect = pygame.Rect(0, 0, 0, 0)
+            return
+
+        logical_width, logical_height = self.logical_size
+        display_width = self.screen.get_width()
+        display_height = self.screen.get_height()
+        scale = min(display_width / logical_width, display_height / logical_height)
+        output_width = max(1, int(logical_width * scale))
+        output_height = max(1, int(logical_height * scale))
+        self.output_rect = pygame.Rect(
+            (display_width - output_width) // 2,
+            (display_height - output_height) // 2,
+            output_width,
+            output_height,
+        )
     
     def get_video_flags(self):
         """
@@ -202,25 +257,51 @@ class VideoAgent(BaseAgent, MultiDrawer):
     
     def toggle_fullscreen(self):
         """
-        Toggle fullscreen mode.
+        Apply the current fullscreen option to the active display mode.
         """
-        try:
-            # Try to toggle fullscreen
-            pygame.display.toggle_fullscreen()
-            self.fullscreen = not self.fullscreen
-        except pygame.error:
-            # If toggle fails, reinitialize the video mode
-            if self.screen:
-                self.change_video_mode(self.screen.get_width(), self.screen.get_height())
+        if self.screen:
+            options = OptionAgent.agent()
+            screen_width = options.get_as_int("screen_width", 640)
+            screen_height = options.get_as_int("screen_height", 480)
+            self.change_video_mode(screen_width, screen_height)
                 
     def get_screen(self):
         """
-        Get the screen surface.
+        Get the logical game surface.
         
         Returns:
             pygame.Surface: The screen surface
         """
-        return self.screen
+        return self.draw_surface or self.screen
+
+    def screen_to_game_pos(self, pos):
+        """
+        Convert display coordinates to logical game coordinates.
+        """
+        if self.output_rect.width == 0 or self.output_rect.height == 0:
+            return pos
+
+        x = (pos[0] - self.output_rect.x) * self.logical_size[0] / self.output_rect.width
+        y = (pos[1] - self.output_rect.y) * self.logical_size[1] / self.output_rect.height
+        return int(x), int(y)
+
+    def game_to_screen_pos(self, pos):
+        """
+        Convert logical game coordinates to display coordinates.
+        """
+        if self.logical_size == (0, 0):
+            return pos
+
+        x = self.output_rect.x + pos[0] * self.output_rect.width / self.logical_size[0]
+        y = self.output_rect.y + pos[1] * self.output_rect.height / self.logical_size[1]
+        return int(x), int(y)
+
+    def center_mouse(self):
+        """Move the mouse to the center of the logical game surface."""
+        if self.logical_size != (0, 0):
+            x = self.logical_size[0] // 2
+            y = self.logical_size[1] // 2
+            pygame.mouse.set_pos(self.game_to_screen_pos((x, y)))
         
     def get_mouse_pos(self):
         """
@@ -229,7 +310,7 @@ class VideoAgent(BaseAgent, MultiDrawer):
         Returns:
             tuple: Mouse position (x, y)
         """
-        return pygame.mouse.get_pos()
+        return self.screen_to_game_pos(pygame.mouse.get_pos())
     
     def receive_simple(self, msg):
         """

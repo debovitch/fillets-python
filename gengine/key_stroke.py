@@ -32,8 +32,15 @@ class KeyStroke:
     Represents a keyboard keystroke with modifiers.
     """
     
-    # Modifier flags to pay attention to (CTRL and ALT)
-    STROKE_IGNORE = ~(pygame.KMOD_CTRL | pygame.KMOD_ALT)
+    # Modifier flags to pay attention to (CTRL, ALT/Option and Command/Meta).
+    # SDL can report Option/AltGr-like keys through KMOD_MODE on some layouts.
+    ALT_FAMILY = pygame.KMOD_ALT | getattr(pygame, "KMOD_MODE", 0)
+    STROKE_IGNORE = ~(pygame.KMOD_CTRL | ALT_FAMILY | pygame.KMOD_META)
+    MOD_FAMILIES = (
+        pygame.KMOD_CTRL,
+        ALT_FAMILY,
+        pygame.KMOD_META,
+    )
     
     def __init__(self, keysym_or_key, mod=None, unicode=None):
         """
@@ -113,6 +120,37 @@ class KeyStroke:
             bool: True if the keystrokes are equal
         """
         return self.sym == other.sym and self.mod == other.mod
+
+    def matches(self, other):
+        """
+        Check if this registered keystroke matches an actual keystroke.
+
+        Aggregate modifiers like KMOD_CTRL, KMOD_ALT and KMOD_META match either
+        left or right key in that family. Side-specific modifiers still require
+        the same side.
+        """
+        if not isinstance(other, KeyStroke):
+            return False
+        if self.sym != other.sym:
+            return False
+
+        return all(
+            self._mod_family_matches(self.mod, other.mod, family)
+            for family in self.MOD_FAMILIES
+        )
+
+    @staticmethod
+    def _mod_family_matches(expected, actual, family):
+        expected_family = expected & family
+        actual_family = actual & family
+
+        if expected_family == 0:
+            return actual_family == 0
+        if family == KeyStroke.ALT_FAMILY and expected_family == pygame.KMOD_ALT:
+            return actual_family != 0
+        if expected_family == family:
+            return actual_family != 0
+        return (actual_family & expected_family) == expected_family
     
     def __eq__(self, other):
         """
@@ -163,8 +201,12 @@ class KeyStroke:
         
         if self.mod & pygame.KMOD_CTRL:
             mod_str += "CTRL+"
+        if self.mod & pygame.KMOD_META:
+            mod_str += "CMD+"
         if self.mod & pygame.KMOD_ALT:
             mod_str += "ALT+"
+        elif self.mod & getattr(pygame, "KMOD_MODE", 0):
+            mod_str += "MODE+"
         
         return f"{mod_str}{key_name.upper()}"
     
@@ -176,3 +218,4 @@ class KeyStroke:
             str: A string representation
         """
         return self.to_string()
+    

@@ -42,6 +42,7 @@ class KeyBinder(NoCopy):
         Initialize a new key binder.
         """
         self.strokes = {}  # Maps KeyStroke to BaseMsg
+        self.active_keys = set()
     
     def __del__(self):
         """
@@ -87,7 +88,36 @@ class KeyBinder(NoCopy):
         
         Args:
             event (pygame.event.Event): The key event
+
+        Returns:
+            bool: True if a binding handled the event
         """
+        if event.key in self.active_keys:
+            return True
+
         stroke = KeyStroke(event)
         if stroke in self.strokes:
             self.strokes[stroke].send_clone()
+            self.active_keys.add(event.key)
+            return True
+
+        for registered_stroke, msg in self.strokes.items():
+            if registered_stroke.matches(stroke):
+                msg.send_clone()
+                self.active_keys.add(event.key)
+                return True
+
+        return False
+
+    def key_up(self, event):
+        """
+        Release a previously handled global key binding.
+
+        Returns:
+            bool: True if the key release belonged to a global binding
+        """
+        if event.key in self.active_keys:
+            self.active_keys.remove(event.key)
+            return True
+
+        return False
