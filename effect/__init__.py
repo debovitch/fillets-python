@@ -38,4 +38,5 @@ from effect.pixel_tool import PixelTool
 from effect.pixel_iterator import PixelIterator
 from effect.surface_tool import SurfaceTool
 from effect.picture import Picture
+from effect.wavy_picture import WavyPicture
 from effect.font import Font

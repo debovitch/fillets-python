@@ -35,38 +35,7 @@ from gengine.path import Path
 from gengine.agent.sound_agent import SoundAgent
 from gengine.agent.option_agent import OptionAgent
 from gengine.agent.timer_agent import TimerAgent
-
-class WavyPicture:
-    """
-    Placeholder for WavyPicture - implement based on effect requirements
-    """
-    def __init__(self, path, loc):
-        self.path = path
-        self.loc = loc
-        self.amplitude = 0
-        self.periode = 0
-        self.speed = 0
-        
-        from effect.picture import Picture
-        self.picture = Picture(path, loc)
-
-    def draw_on(self, screen):
-        # For now, just draw the picture without wavy effect
-        self.picture.draw_on(screen)
-
-    def set_wamp(self, amplitude):
-        self.amplitude = amplitude
-
-    def set_wperiode(self, periode):
-        self.periode = periode
-
-    def set_wspeed(self, speed):
-        self.speed = speed
-
-    def change_picture(self, path):
-        from effect.picture import Picture
-        self.path = path
-        self.picture = Picture(path, self.loc)
+from effect.wavy_picture import WavyPicture
 
 class Room(Drawable):
     """
